@@ -1,0 +1,29 @@
+name: Build w64devkit
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build w64devkit
+      run: docker build -t w64devkit .
+
+    - name: Build distribution zip file
+      run: docker run --rm w64devkit >w64devkit-${{ github.sha }}.zip
+      
+    - name: Get Short SHA
+      id: vars
+      shell: bash
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Upload full workspace
+      uses: actions/upload-artifact@v3
+      with:
+        name: w64devkit-${{ steps.vars.outputs.sha_short }}
+        path: ${{ github.workspace }}
