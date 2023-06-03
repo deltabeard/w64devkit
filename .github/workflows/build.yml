@@ -1,0 +1,18 @@
+name: Build w64devkit
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build w64devkit
+      run: docker build -t w64devkit .
+    - name: Build distribution zip file
+      run: docker run --rm w64devkit >w64devkit-${{ github.sha }}.zip
