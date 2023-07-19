@@ -17,7 +17,6 @@ ARG MPFR_VERSION=4.1.0
 ARG NASM_VERSION=2.15.05
 ARG PDCURSES_VERSION=3.9
 ARG CPPCHECK_VERSION=2.10
-ARG VIM_VERSION=9.0
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip
@@ -35,7 +34,6 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
     https://ftp.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
-    http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
@@ -57,7 +55,6 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
- && tar xjf vim-$VIM_VERSION.tar.bz2 \
  && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
 COPY src/w64devkit.c src/w64devkit.ico \
      src/alias.c src/debugbreak.c src/pkg-config.c \
@@ -414,27 +411,6 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
             -Os -fno-asynchronous-unwind-tables \
             -Wl,--gc-sections -s -nostdlib \
             -o $PREFIX/bin/{}.exe $PREFIX/src/alias.c -lkernel32
-
-# TODO: Either somehow use $VIM_VERSION or normalize the workdir
-WORKDIR /vim90/src
-RUN ARCH= make -j$(nproc) -f Make_ming.mak \
-        OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
-        UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
-        FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
- && $ARCH-strip vimrun.exe \
- && rm -rf ../runtime/tutor/tutor.* \
- && cp -r ../runtime $PREFIX/share/vim \
- && cp vimrun.exe gvim.exe vim.exe *.dll $PREFIX/share/vim/ \
- && cp xxd/xxd.exe $PREFIX/bin \
- && printf '@set SHELL=\r\n@start "" "%%~dp0/../share/vim/gvim.exe" %%*\r\n' \
-        >$PREFIX/bin/gvim.bat \
- && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
-        >$PREFIX/bin/vim.bat \
- && printf '@set SHELL=\r\n@"%%~dp0/../share/vim/vim.exe" %%*\r\n' \
-        >$PREFIX/bin/vi.bat \
- && printf '@vim -N -u NONE "+read %s" "+write" "%s"\r\n' \
-        '$VIMRUNTIME/tutor/tutor' '%TMP%/tutor%RANDOM%' \
-        >$PREFIX/bin/vimtutor.bat
 
 # NOTE: nasm's configure script is broken, so no out-of-source build
 WORKDIR /nasm-$NASM_VERSION
