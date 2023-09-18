@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 ARG VERSION=1.20.0
 ARG PREFIX=/w64devkit
@@ -11,7 +11,7 @@ ARG GDB_VERSION=13.1
 ARG GMP_VERSION=6.2.1
 ARG LIBICONV_VERSION=1.17
 ARG MAKE_VERSION=4.4
-ARG MINGW_VERSION=11.0.0
+ARG MINGW_VERSION=11.0.1
 ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
 ARG NASM_VERSION=2.15.05
@@ -95,7 +95,9 @@ WORKDIR /bootstrap
 RUN ln -s $ARCH mingw
 
 WORKDIR /x-gcc
-RUN /gcc-$GCC_VERSION/configure \
+COPY src/gcc-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
+ && /gcc-$GCC_VERSION/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
         --target=$ARCH \
@@ -289,6 +291,9 @@ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
  && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/c99.exe $PREFIX/src/alias.c -lkernel32 \
+ && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -ansi" \
+        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o $PREFIX/bin/c89.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
       gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool ld nm objcopy \
       objdump ranlib readelf size strings strip windmc windres \
@@ -370,7 +375,7 @@ RUN /make-$MAKE_VERSION/configure \
         -o $PREFIX/bin/mingw32-make.exe $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /busybox-w32
-COPY src/busybox-*.patch $PREFIX/src/
+COPY src/busybox-* $PREFIX/src/
 RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && make mingw64_defconfig \
  && sed -ri 's/^(CONFIG_AR)=y/\1=n/' .config \
@@ -393,7 +398,9 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && cp busybox.exe $PREFIX/bin/
 
 # Create BusyBox command aliases (like "busybox --install")
-RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
+RUN $ARCH-gcc -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s \
+      -nostdlib -o alias.exe $PREFIX/src/busybox-alias.c -lkernel32 \
+ && printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
       bzip2 cal cat chattr chmod cksum clear cmp comm cp cpio crc32 cut date \
       dc dd df diff dirname dos2unix du echo ed egrep env expand expr factor \
       false fgrep find fold free fsync getopt grep groups gunzip gzip hd \
@@ -406,11 +413,7 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
       tr true truncate ts ttysize uname uncompress unexpand uniq unix2dos \
       unlzma unlzop unxz unzip uptime usleep uudecode uuencode watch \
       wc wget which whoami whois xargs xz xzcat yes zcat \
-    | xargs -I{} -P$(nproc) \
-          $ARCH-gcc -DEXE=busybox.exe -DCMD={} \
-            -Os -fno-asynchronous-unwind-tables \
-            -Wl,--gc-sections -s -nostdlib \
-            -o $PREFIX/bin/{}.exe $PREFIX/src/alias.c -lkernel32
+    | xargs -I{} cp alias.exe $PREFIX/bin/{}.exe
 
 # NOTE: nasm's configure script is broken, so no out-of-source build
 WORKDIR /nasm-$NASM_VERSION
@@ -448,12 +451,9 @@ RUN rm -rf $PREFIX/share/man/ $PREFIX/share/info/ $PREFIX/share/gcc-* \
 COPY README.md Dockerfile src/w64devkit.ini $PREFIX/
 RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
  && $ARCH-windres -o w64devkit.o w64devkit.rc \
- && $ARCH-gcc -DVERSION=$VERSION \
-        -mno-stack-arg-probe -Xlinker --stack=0x10000,0x10000 \
-        -Os -fno-asynchronous-unwind-tables \
-        -Wl,--gc-sections -s -nostdlib \
-        -o $PREFIX/w64devkit.exe $PREFIX/src/w64devkit.c w64devkit.o \
-        -lkernel32 \
+ && $ARCH-gcc -DVERSION=$VERSION -nostdlib -fno-asynchronous-unwind-tables \
+        -fno-builtin -Wl,--gc-sections -s -o $PREFIX/w64devkit.exe \
+        $PREFIX/src/w64devkit.c w64devkit.o -lkernel32 -luser32 \
  && $ARCH-gcc \
         -Os -fno-asynchronous-unwind-tables \
         -Wl,--gc-sections -s -nostdlib \
