@@ -20,7 +20,8 @@ ARG CPPCHECK_VERSION=2.10
 ARG VIM_VERSION=9.0
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
-  build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip
+  build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip \
+  libpython3.11-dev
 
 # Download, verify, and unpack
 
@@ -62,6 +63,8 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
 COPY src/w64devkit.c src/w64devkit.ico src/libmemory.c src/libchkstk.S \
      src/alias.c src/debugbreak.c src/pkg-config.c src/vc++filt.c \
      $PREFIX/src/
+# Use Windows NT pyconfig.h file when building Vim.
+COPY src/pyconfig.h /usr/include/python3.11/
 
 ARG ARCH=x86_64-w64-mingw32
 
@@ -427,6 +430,7 @@ RUN ARCH= make -j$(nproc) -f Make_ming.mak \
         OPTIMIZE=SIZE STATIC_STDCPLUS=yes HAS_GCC_EH=no \
         UNDER_CYGWIN=yes CROSS=yes CROSS_COMPILE=$ARCH- \
         FEATURES=HUGE VIMDLL=yes NETBEANS=no WINVER=0x0501 \
+        PYTHON3=/python-3.11 PYTHON3_VER=311 PYTHON3INC="-I /usr/include/python3.11/" \
  && $ARCH-strip vimrun.exe \
  && rm -rf ../runtime/tutor/tutor.* \
  && cp -r ../runtime $PREFIX/share/vim \
